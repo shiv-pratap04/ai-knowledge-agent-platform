@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-dotenv
 psycopg2-binary
+pgvector
 redis
 requests
 sentence-transformers
