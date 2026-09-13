@@ -5,3 +5,5 @@ psycopg2-binary
 redis
 requests
 sentence-transformers
+numpy
+scikit-learn
