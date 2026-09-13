@@ -4,3 +4,4 @@ python-dotenv
 psycopg2-binary
 redis
 requests
+sentence-transformers
