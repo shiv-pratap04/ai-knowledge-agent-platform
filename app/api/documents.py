@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile
+from fastapi import APIRouter, Depends, UploadFile
+
+from app.core.security import get_current_user
 
 router = APIRouter()
 
@@ -10,7 +12,7 @@ documents = []
 
 
 @router.post("/documents")
-async def upload_document(file: UploadFile):
+async def upload_document(file: UploadFile, username: str = Depends(get_current_user)):
     UPLOAD_DIR.mkdir(exist_ok=True)
 
     filename = Path(file.filename or "unnamed").name
@@ -33,5 +35,5 @@ async def upload_document(file: UploadFile):
 
 
 @router.get("/documents")
-def list_documents():
+def list_documents(username: str = Depends(get_current_user)):
     return documents
