@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from app.core.security import get_current_user
+from app.services.chunker import chunk_pages
+from app.services.document_store import save_document_and_chunks
+from app.services.embedder import embed_chunks
+from app.services.pdf_parser import extract_text_from_pdf
 
 router = APIRouter()
 
@@ -27,10 +31,40 @@ async def upload_document(file: UploadFile, username: str = Depends(get_current_
     }
     documents.append(record)
 
+    pages, near_empty = extract_text_from_pdf(saved_path)
+    chunks = [] if near_empty else chunk_pages(pages)
+
+    if near_empty or not chunks:
+        try:
+            document_id, stored = save_document_and_chunks(filename, [])
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not connect to Postgres. Start it with: docker compose up -d",
+            )
+        return {
+            "filename": filename,
+            "document_id": document_id,
+            "total_chunks_created": stored,
+            "message": (
+                "Little to no text extracted - this PDF might be "
+                "scanned/image-based and need OCR. No chunks were created."
+            ),
+        }
+
+    embed_chunks(chunks)
+    try:
+        document_id, stored = save_document_and_chunks(filename, chunks)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not connect to Postgres. Start it with: docker compose up -d",
+        )
+
     return {
         "filename": filename,
-        "saved": True,
-        "path": record["path"],
+        "document_id": document_id,
+        "total_chunks_created": stored,
     }
 
 

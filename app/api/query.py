@@ -2,28 +2,18 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from pgvector import Vector
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
-
 from app.core.security import get_current_user
+from app.services.embedder import get_embedding_model
 from db.connection import get_db_connection
 
 router = APIRouter()
 
-MODEL_NAME = "all-MiniLM-L6-v2"
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.2"
-_model = None
 
 
 class QueryRequest(BaseModel):
     question: str
-
-
-def get_embedding_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(MODEL_NAME)
-    return _model
 
 
 def retrieve_chunks(question: str):
