@@ -42,8 +42,10 @@ def retrieve_chunks(question: str):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT text, page_number, chunk_index, document_id, embedding <=> %s AS distance
-                FROM chunks
+                SELECT c.text, c.page_number, c.chunk_index, c.document_id,
+                       d.filename, c.embedding <=> %s AS distance
+                FROM chunks c
+                LEFT JOIN documents d ON d.id = c.document_id
                 ORDER BY distance
                 LIMIT 5
                 """,
@@ -59,10 +61,28 @@ def retrieve_chunks(question: str):
             "page_number": page_number,
             "chunk_index": chunk_index,
             "document_id": document_id,
+            "filename": filename or f"document-{document_id}",
             "distance": float(distance),
         }
-        for text, page_number, chunk_index, document_id, distance in rows
+        for text, page_number, chunk_index, document_id, filename, distance in rows
     ]
+
+
+def build_sources(chunks):
+    seen = set()
+    sources = []
+    for chunk in chunks:
+        key = (chunk["document_id"], chunk["page_number"])
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {
+                "filename": chunk["filename"],
+                "page_number": chunk["page_number"],
+            }
+        )
+    return sources
 
 
 def build_context(chunks):
@@ -75,7 +95,9 @@ def ask_ollama(question: str, context: str) -> str:
     system_prompt = (
         "You are a helpful assistant. Answer the user's question using ONLY "
         "the provided context below. If the answer isn't in the context, say "
-        f"you don't know. Context:\n{context}"
+        "you don't know. When referencing information, mention which page it "
+        "came from if useful, using the format (Page X). "
+        f"Context:\n{context}"
     )
     try:
         response = requests.post(
@@ -105,14 +127,7 @@ def ask_ollama(question: str, context: str) -> str:
 @router.post("/query")
 def query_chunks(body: QueryRequest, username: str = Depends(get_current_user)):
     matches = retrieve_chunks(body.question)
-    sources = [
-        {
-            "page_number": chunk["page_number"],
-            "chunk_index": chunk["chunk_index"],
-            "document_id": chunk["document_id"],
-        }
-        for chunk in matches
-    ]
+    sources = build_sources(matches)
 
     if not matches:
         return {
