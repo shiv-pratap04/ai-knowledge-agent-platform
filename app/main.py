@@ -1,4 +1,7 @@
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.agent import router as agent_router
@@ -9,6 +12,18 @@ from app.api.organization import router as organization_router
 from app.api.query import router as query_router
 
 app = FastAPI(title="AI Knowledge Agent Platform")
+
+cors_origins = os.getenv(
+	"CORS_ORIGINS",
+	"http://localhost:5173,http://127.0.0.1:5173",
+).split(",")
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=[origin.strip() for origin in cors_origins if origin.strip()],
+	allow_credentials=False,
+	allow_methods=["GET", "POST", "OPTIONS"],
+	allow_headers=["Authorization", "Content-Type"],
+)
 
 app.include_router(health_router)
 app.include_router(organization_router)
