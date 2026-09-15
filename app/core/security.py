@@ -20,6 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 class OrganizationContext:
     org_id: str
     role: str
+    user_id: str
 
 
 def create_access_token(data: dict) -> str:
@@ -60,8 +61,21 @@ def get_current_org(token: str = Depends(oauth2_scheme)) -> OrganizationContext:
         payload = decode_access_token(token)
         org_id = payload.get("org_id")
         role = payload.get("role")
-        if not org_id or role not in {"admin", "member"}:
+        user_id = payload.get("user_id")
+        if not org_id or not user_id or role not in {"admin", "member"}:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    return OrganizationContext(org_id=str(org_id), role=role)
+    return OrganizationContext(org_id=str(org_id), role=role, user_id=str(user_id))
+
+
+def require_admin(
+    organization: OrganizationContext = Depends(get_current_org),
+) -> OrganizationContext:
+    """Require an authenticated organization administrator."""
+    if organization.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator role required.",
+        )
+    return organization

@@ -101,21 +101,22 @@ def login(body: LoginRequest):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT password_hash, org_id, role FROM users WHERE username = %s",
+                "SELECT id, password_hash, org_id, role FROM users WHERE username = %s",
                 (body.username,),
             )
             user = cur.fetchone()
     finally:
         conn.close()
 
-    if not user or not pwd_context.verify(body.password, user[0]):
+    if not user or not pwd_context.verify(body.password, user[1]):
         raise _auth_error()
 
     access_token = create_access_token(
         {
             "sub": body.username,
-            "org_id": str(user[1]),
-            "role": user[2],
+            "user_id": str(user[0]),
+            "org_id": str(user[2]),
+            "role": user[3],
         }
     )
     return {"access_token": access_token, "token_type": "bearer"}

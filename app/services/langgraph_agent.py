@@ -43,10 +43,33 @@ def _build_agent(org_id: str):
 
 
 def invoke_agent(question: str, org_id: str):
-    """Run the LangGraph agent and return its final message."""
+    """Run the LangGraph agent and return its answer plus tool metadata."""
     logger.info("LangGraph agent started")
     result = _build_agent(org_id).invoke(
         {"messages": [{"role": "user", "content": question}]}
     )
     logger.info("LangGraph agent completed")
-    return result["messages"][-1]
+    tool_calls = []
+    citations = []
+    for message in result["messages"]:
+        tool_calls.extend(getattr(message, "tool_calls", None) or [])
+        if getattr(message, "type", None) != "tool":
+            continue
+        for item in str(message.content).split("\n\n"):
+            try:
+                citation = json.loads(item)
+            except json.JSONDecodeError:
+                continue
+            citations.append(
+                {
+                    "filename": citation.get("filename"),
+                    "page_number": citation.get("page"),
+                }
+            )
+
+    final_message = result["messages"][-1]
+    return {
+        "content": final_message.content,
+        "citations": citations or None,
+        "tool_calls": tool_calls or None,
+    }

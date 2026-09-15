@@ -7,8 +7,9 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
+from app.services.conversation_store import add_message, get_or_create_conversation
 from app.services.langchain_retriever import PgChunksRetriever
-from db.connection import DatabaseConnectionError, DatabaseQueryError
+from db.connection import DatabaseConnectionError, DatabaseError, DatabaseQueryError
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ chain = prompt | ChatOllama(model="llama3.2") | StrOutputParser()
 
 class QueryRequest(BaseModel):
     question: str
+    conversation_id: str | None = None
 
 
 def build_sources(matches):
@@ -70,6 +72,22 @@ def query(
     """Retrieve and answer using the canonical LangChain RAG chain."""
     logger.info("LangChain query from %s: %s", username, body.question)
     try:
+        conversation_id = get_or_create_conversation(
+            body.conversation_id,
+            organization.org_id,
+            organization.user_id,
+            body.question,
+        )
+        add_message(conversation_id, "user", body.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except DatabaseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not persist the conversation.",
+        ) from exc
+
+    try:
         docs = PgChunksRetriever(k=5, org_id=organization.org_id).invoke(body.question)
     except DatabaseConnectionError:
         raise HTTPException(
@@ -100,10 +118,13 @@ def query(
     sources = build_sources(matches)
 
     if not docs:
+        answer = "No relevant information found in the documents."
+        add_message(conversation_id, "assistant", answer, citations=[])
         return {
             "question": body.question,
-            "answer": "No relevant information found in the documents.",
+            "answer": answer,
             "sources": [],
+            "conversation_id": conversation_id,
         }
 
     context = format_docs_as_context(docs)
@@ -117,4 +138,11 @@ def query(
         )
 
     logger.info("LangChain answer returned (%s chars, %s sources)", len(answer), len(sources))
-    return {"question": body.question, "answer": answer.strip(), "sources": sources}
+    answer = answer.strip()
+    add_message(conversation_id, "assistant", answer, citations=sources)
+    return {
+        "question": body.question,
+        "answer": answer,
+        "sources": sources,
+        "conversation_id": conversation_id,
+    }
