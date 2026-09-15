@@ -13,13 +13,12 @@ SCHEMA_PATH = Path(__file__).resolve().parents[2] / "db" / "schema.sql"
 
 def _apply_schema(cur):
     sql = SCHEMA_PATH.read_text(encoding="utf-8")
-    for statement in sql.split(";"):
-        statement = statement.strip()
-        if statement:
-            cur.execute(statement)
+    cur.execute(sql)
 
 
-def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, int]:
+def save_document_and_chunks(
+    filename: str, chunks: list[dict], org_id: str
+) -> tuple[int, int]:
     """Insert a documents row and its chunks. Returns (document_id, chunk_count)."""
     conn = get_db_connection()
     try:
@@ -27,8 +26,12 @@ def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, in
             with conn.cursor() as cur:
                 _apply_schema(cur)
                 cur.execute(
-                    "INSERT INTO documents (filename) VALUES (%s) RETURNING id",
-                    (filename,),
+                    """
+                    INSERT INTO documents (filename, org_id)
+                    VALUES (%s, %s)
+                    RETURNING id
+                    """,
+                    (filename, org_id),
                 )
                 document_id = cur.fetchone()[0]
 
@@ -52,8 +55,13 @@ def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, in
                     )
 
                 cur.execute(
-                    "SELECT COUNT(*) FROM chunks WHERE document_id = %s",
-                    (document_id,),
+                    """
+                    SELECT COUNT(*)
+                    FROM chunks c
+                    JOIN documents d ON d.id = c.document_id
+                    WHERE c.document_id = %s AND d.org_id = %s
+                    """,
+                    (document_id, org_id),
                 )
                 stored = cur.fetchone()[0]
         logger.info("Stored document id=%s filename=%s chunks=%s", document_id, filename, stored)

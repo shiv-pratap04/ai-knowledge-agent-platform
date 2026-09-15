@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.security import get_current_user
+from app.core.security import OrganizationContext, get_current_org, get_current_user
 from app.services.langgraph_agent import invoke_agent
 from db.connection import DatabaseConnectionError, DatabaseQueryError
 
@@ -17,11 +17,15 @@ class AgentRequest(BaseModel):
 
 
 @router.post("/agent")
-def run_agent(body: AgentRequest, username: str = Depends(get_current_user)):
+def run_agent(
+    body: AgentRequest,
+    username: str = Depends(get_current_user),
+    organization: OrganizationContext = Depends(get_current_org),
+):
     """Run the LangGraph knowledge-base agent."""
     logger.info("LangGraph agent request from %s", username)
     try:
-        message = invoke_agent(body.question)
+        message = invoke_agent(body.question, organization.org_id)
     except DatabaseConnectionError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -28,6 +28,7 @@ class PgChunksRetriever(BaseRetriever):
     """Top-k cosine search against the existing `chunks` table."""
 
     k: int = 5
+    org_id: str
 
     def _get_relevant_documents(self, query: str) -> list[Document]:
         vector = get_query_embeddings().embed_query(query)
@@ -40,10 +41,11 @@ class PgChunksRetriever(BaseRetriever):
                            d.filename, c.embedding <=> %s AS distance
                     FROM chunks c
                     LEFT JOIN documents d ON d.id = c.document_id
+                    WHERE d.org_id = %s
                     ORDER BY distance
                     LIMIT %s
                     """,
-                    (Vector(vector), self.k),
+                    (Vector(vector), self.org_id, self.k),
                 )
                 rows = cur.fetchall()
         except psycopg2.Error as exc:

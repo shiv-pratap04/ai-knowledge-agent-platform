@@ -6,15 +6,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
-from app.core.security import get_current_user
+from app.core.security import OrganizationContext, get_current_org, get_current_user
 from app.services.langchain_retriever import PgChunksRetriever
 from db.connection import DatabaseConnectionError, DatabaseQueryError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-retriever = PgChunksRetriever(k=5)
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -64,11 +62,15 @@ def format_docs_as_context(docs) -> str:
 
 
 @router.post("/query")
-def query(body: QueryRequest, username: str = Depends(get_current_user)):
+def query(
+    body: QueryRequest,
+    username: str = Depends(get_current_user),
+    organization: OrganizationContext = Depends(get_current_org),
+):
     """Retrieve and answer using the canonical LangChain RAG chain."""
     logger.info("LangChain query from %s: %s", username, body.question)
     try:
-        docs = retriever.invoke(body.question)
+        docs = PgChunksRetriever(k=5, org_id=organization.org_id).invoke(body.question)
     except DatabaseConnectionError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
