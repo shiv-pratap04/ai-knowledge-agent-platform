@@ -13,6 +13,7 @@ export function AppShell() {
           <h1>Archive Room</h1>
         </div>
         <nav className="nav-links" aria-label="Primary navigation">
+          <NavLink to="/chat">Chat</NavLink>
           <NavLink to="/documents">Documents</NavLink>
         </nav>
         <div className="sidebar-footer">

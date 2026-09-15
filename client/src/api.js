@@ -45,4 +45,38 @@ export function uploadDocument(token, file) {
   });
 }
 
+export function listConversations(token) {
+  return request("/conversations", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getConversation(token, conversationId) {
+  return request(`/conversations/${conversationId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createConversation(token, title = "New conversation") {
+  return request("/conversations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export function sendAgentMessage(token, question, conversationId) {
+  return request("/agent", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ question, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+  });
+}
+
 export { API_URL };
