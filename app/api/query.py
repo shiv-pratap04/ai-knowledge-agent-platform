@@ -1,10 +1,16 @@
+import logging
+
+import psycopg2
 import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from pgvector import Vector
 from pydantic import BaseModel
+
 from app.core.security import get_current_user
-from app.services.embedder import get_embedding_model
-from db.connection import get_db_connection
+from app.services.embedder import EmbeddingError, get_embedding_model
+from db.connection import DatabaseError, get_db_connection
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -17,17 +23,16 @@ class QueryRequest(BaseModel):
 
 
 def retrieve_chunks(question: str):
-    model = get_embedding_model()
-    query_embedding = model.encode(question)
-
+    """Embed the question and return the top 5 nearest chunks from Postgres."""
     try:
-        conn = get_db_connection()
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not connect to Postgres. Start it with: docker compose up -d",
-        )
+        model = get_embedding_model()
+        query_embedding = model.encode(question)
+    except EmbeddingError:
+        raise
+    except Exception as exc:
+        raise EmbeddingError("Failed to embed the question.") from exc
 
+    conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -42,6 +47,8 @@ def retrieve_chunks(question: str):
                 (Vector(query_embedding.tolist()),),
             )
             rows = cur.fetchall()
+    except psycopg2.Error as exc:
+        raise DatabaseError("Failed to search chunks in Postgres.") from exc
     finally:
         conn.close()
 
@@ -59,6 +66,7 @@ def retrieve_chunks(question: str):
 
 
 def build_sources(chunks):
+    """Deduplicate citations by document_id + page_number."""
     seen = set()
     sources = []
     for chunk in chunks:
@@ -76,12 +84,14 @@ def build_sources(chunks):
 
 
 def build_context(chunks):
+    """Join retrieved chunks into a page-labeled context string for the LLM."""
     return "\n".join(
         f"[Page {chunk['page_number']}]: {chunk['text']}" for chunk in chunks
     )
 
 
 def ask_ollama(question: str, context: str) -> str:
+    """Ask the local Ollama model to answer using only the given context."""
     system_prompt = (
         "You are a helpful assistant. Answer the user's question using ONLY "
         "the provided context below. If the answer isn't in the context, say "
@@ -116,16 +126,33 @@ def ask_ollama(question: str, context: str) -> str:
 
 @router.post("/query")
 def query_chunks(body: QueryRequest, username: str = Depends(get_current_user)):
-    matches = retrieve_chunks(body.question)
+    """Retrieve relevant chunks and generate a grounded answer with sources."""
+    logger.info("Query received from %s: %s", username, body.question)
+    try:
+        matches = retrieve_chunks(body.question)
+    except EmbeddingError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding model failed to load or encode text. Check the server logs.",
+        )
+    except DatabaseError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not connect to Postgres. Start it with: docker compose up -d",
+        )
+
     sources = build_sources(matches)
 
     if not matches:
+        logger.info("No chunks retrieved for question: %s", body.question)
         return {
             "question": body.question,
             "answer": "No relevant information found in the documents.",
             "sources": [],
         }
 
+    logger.info("Retrieved %s chunks; calling LLM", len(matches))
     context = build_context(matches)
     answer = ask_ollama(body.question, context)
+    logger.info("Answer returned (%s chars, %s sources)", len(answer), len(sources))
     return {"question": body.question, "answer": answer, "sources": sources}

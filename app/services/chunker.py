@@ -1,8 +1,13 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 CHUNK_SIZE = 500
 OVERLAP = 50
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) -> list[str]:
+    """Split text into overlapping character windows."""
     if not text.strip():
         return []
     if overlap >= chunk_size:
@@ -20,6 +25,7 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) 
 
 
 def chunk_pages(pages: list[dict]) -> list[dict]:
+    """Chunk each page's text, keeping page_number and chunk_index metadata."""
     chunks = []
     for page in pages:
         page_chunks = chunk_text(page["text"])
@@ -31,4 +37,5 @@ def chunk_pages(pages: list[dict]) -> list[dict]:
                     "chunk_index": chunk_index,
                 }
             )
+    logger.info("Created %s chunks from %s pages", len(chunks), len(pages))
     return chunks

@@ -1,8 +1,12 @@
+import logging
 from pathlib import Path
 
+import psycopg2
 from pgvector import Vector
 
-from db.connection import get_db_connection
+from db.connection import DatabaseError, get_db_connection
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "db" / "schema.sql"
 
@@ -16,6 +20,7 @@ def _apply_schema(cur):
 
 
 def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, int]:
+    """Insert a documents row and its chunks. Returns (document_id, chunk_count)."""
     conn = get_db_connection()
     try:
         with conn:
@@ -47,6 +52,9 @@ def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, in
                     (document_id,),
                 )
                 stored = cur.fetchone()[0]
+        logger.info("Stored document id=%s filename=%s chunks=%s", document_id, filename, stored)
         return document_id, stored
+    except (psycopg2.Error, OSError) as exc:
+        raise DatabaseError("Failed to save document and chunks to Postgres.") from exc
     finally:
         conn.close()
