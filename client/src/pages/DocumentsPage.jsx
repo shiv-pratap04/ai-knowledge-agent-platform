@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listDocuments, uploadDocument } from "../api";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../components/Toast";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -9,6 +10,7 @@ function formatDate(value) {
 
 export function DocumentsPage() {
   const { token } = useAuth();
+  const { showToast } = useToast();
   const inputRef = useRef(null);
   const [documents, setDocuments] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -22,6 +24,7 @@ export function DocumentsPage() {
       setDocuments(await listDocuments(token));
     } catch (error) {
       setStatus({ type: "error", message: error.message });
+      showToast(error.message);
     } finally {
       setLoading(false);
     }
@@ -42,6 +45,7 @@ export function DocumentsPage() {
       await refreshDocuments();
     } catch (error) {
       setStatus({ type: "error", message: error.message });
+      showToast(error.message);
     } finally {
       setUploading(false);
     }

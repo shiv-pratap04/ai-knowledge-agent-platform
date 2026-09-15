@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "./LoginPage";
+import { useToast } from "../components/Toast";
 
 export function SignupPage() {
   const { signup } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [mode, setMode] = useState("create");
   const [form, setForm] = useState({ username: "", password: "", orgName: "", inviteCode: "" });
@@ -20,6 +22,7 @@ export function SignupPage() {
       navigate("/documents", { replace: true });
     } catch (requestError) {
       setError(requestError.message);
+      showToast(requestError.message);
     } finally {
       setBusy(false);
     }

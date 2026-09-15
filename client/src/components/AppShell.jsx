@@ -15,6 +15,7 @@ export function AppShell() {
         <nav className="nav-links" aria-label="Primary navigation">
           <NavLink to="/chat">Chat</NavLink>
           <NavLink to="/documents">Documents</NavLink>
+          {user?.role === "admin" && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <div className="sidebar-footer">
           <div className="user-chip">

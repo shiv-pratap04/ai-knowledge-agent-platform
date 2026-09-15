@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../components/Toast";
 import {
   createConversation,
   getConversation,
@@ -17,6 +18,7 @@ function makeOptimisticMessage(role, content) {
 
 export function ChatPage() {
   const { token } = useAuth();
+  const { showToast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [draft, setDraft] = useState("");
@@ -32,6 +34,7 @@ export function ChatPage() {
       setConversations(await listConversations(token));
     } catch (requestError) {
       setError(requestError.message);
+      showToast(requestError.message);
     } finally {
       setLoading(false);
     }
@@ -46,6 +49,7 @@ export function ChatPage() {
       setActiveConversation(await getConversation(token, id));
     } catch (requestError) {
       setError(requestError.message);
+      showToast(requestError.message);
     }
   }
 
@@ -84,6 +88,7 @@ export function ChatPage() {
     } catch (requestError) {
       setDraft(question);
       setError(requestError.message);
+      showToast(requestError.message);
     } finally {
       setSending(false);
     }

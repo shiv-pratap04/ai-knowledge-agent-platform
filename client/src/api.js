@@ -79,4 +79,22 @@ export function sendAgentMessage(token, question, conversationId) {
   });
 }
 
+export function listOrgMembers(token) {
+  return request("/org/members", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getOrgUsage(token) {
+  return request("/org/usage", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getOrgInvite(token) {
+  return request("/org/invite", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export { API_URL };

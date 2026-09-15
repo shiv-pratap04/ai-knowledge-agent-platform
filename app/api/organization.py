@@ -61,3 +61,21 @@ def org_usage(organization: OrganizationContext = Depends(require_admin)):
         conn.close()
 
     return {"org_id": organization.org_id, "document_count": document_count, "query_count": query_count}
+
+
+@router.get("/org/invite")
+def org_invite(organization: OrganizationContext = Depends(require_admin)):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT invite_code FROM organizations WHERE id = %s",
+                (organization.org_id,),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return {"invite_code": ""}
+    return {"invite_code": row[0]}

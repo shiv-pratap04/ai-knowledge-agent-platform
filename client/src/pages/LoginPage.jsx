@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../components/Toast";
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ username: "", password: "" });
@@ -19,6 +21,7 @@ export function LoginPage() {
       navigate(location.state?.from?.pathname || "/documents", { replace: true });
     } catch (requestError) {
       setError(requestError.message);
+      showToast(requestError.message);
     } finally {
       setBusy(false);
     }
