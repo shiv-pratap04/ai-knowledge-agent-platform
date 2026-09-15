@@ -1,41 +1,49 @@
-# RAG pipeline notes
+# RAG Pipeline
 
-Working notes for the current FastAPI + Postgres + Ollama stack. Not a product spec.
+The application has one RAG endpoint: `POST /query`. It uses LangChain for document loading, splitting, embeddings, retrieval, prompting, and generation.
 
-## What it does
+## Ingestion
 
-Upload a PDF → parse text with pypdf → split into overlapping chunks → embed with `all-MiniLM-L6-v2` → store in Postgres (`documents` + `chunks` with `vector(384)`) → on `POST /query`, embed the question, retrieve the top 5 chunks with pgvector `<=>`, send them to local Ollama (`llama3.2`) with a “answer only from context” system prompt → return `{question, answer, sources}` with filename + page citations.
-
-Auth: JWT on `/documents` and `/query`. Login is still a hardcoded test user.
-
+```text
+POST /documents
+    -> LangChain PyPDFLoader
+    -> RecursiveCharacterTextSplitter
+    -> HuggingFaceEmbeddings (all-MiniLM-L6-v2, 384 dimensions)
+    -> PostgreSQL documents/chunks tables with pgvector embeddings
 ```
-POST /documents  →  pdf_parser → chunker → embedder → document_store
-POST /query      →  embed question → pgvector top-5 → Ollama → citations
+
+Uploads are processed synchronously. Empty or image-only PDFs are stored without chunks and reported to the caller. PostgreSQL remains the source of truth for indexed documents.
+
+## Query
+
+```text
+POST /query
+    -> LangChain HuggingFaceEmbeddings
+    -> PgChunksRetriever
+    -> pgvector cosine retrieval
+    -> LangChain ChatPromptTemplate
+    -> ChatOllama (llama3.2)
+    -> answer with page-cited sources
 ```
 
-## Design choices
+`PgChunksRetriever` is a LangChain `BaseRetriever` over the existing `chunks` table. The database schema remains the application-owned `documents` and `chunks` schema with `vector(384)` embeddings.
 
-- **pgvector in Postgres, not a separate vector DB.** We already run Postgres for the app. One container, SQL joins to filenames, and `ON DELETE CASCADE` is enough at this scale. Pinecone/Qdrant would be extra infra for a student project.
+## Agent
 
-- **Chunk size 500, overlap 50.** Small enough that MiniLM’s ~256-token window is comfortable; overlap so a sentence split across a boundary still shows up in two chunks. Tuned by looking at day-14 output, not a paper.
+```text
+POST /agent
+    -> LangGraph ReAct agent
+    -> LangChain search_knowledge_base tool
+    -> PgChunksRetriever
+    -> ChatOllama (llama3.2)
+```
 
-- **`all-MiniLM-L6-v2`.** Fast on CPU, 384-d, no API key. Good enough to prove retrieval. A stronger model (e.g. `bge-small` / OpenAI) is a later swap in `app/services/embedder.py`.
+LangGraph owns the agent state and tool loop. There is no manual prompt-parsing or hand-written function-calling loop in the application.
 
-- **Raw SQL, no ORM.** Tables are two files of `CREATE TABLE`. psycopg2 + the pgvector Python adapter is fewer moving parts while the schema is still changing. SQLAlchemy can wait until users/jobs exist.
+## Configuration
 
-## Known limitations
-
-- Upload is **synchronous**: the HTTP request waits for parse + embed + insert. Fine for one PDF; will block under real load (Celery later).
-- **No OCR.** Scanned PDFs store a `documents` row and zero chunks.
-- **No re-ranking.** Top-5 cosine distance is the whole retrieval stack.
-- **One embedding model**, shared for index and query (required for cosine to mean anything).
-- Duplicate uploads create **duplicate document rows** (same filename, new id). Citations can repeat the same page from two ids.
-- `GET /documents` is still an **in-memory list** for this process; Postgres is the source of truth for RAG.
-- LLM is **local llama3.2** via Ollama; if Ollama is down, query returns 503 after retrieval.
-- No eval set, no chunk-quality metrics, no hybrid (keyword + vector) search.
-
-## Next
-
-1. **LangChain comparison** — rebuild the same retrieve-then-generate path with LC so we can see what the framework actually buys vs this hand-rolled loop.
-2. **Agent / LangGraph phase** — tools beyond “search my PDFs” (the day-9/10 weather loop was the sketch), with graph state instead of a single `/query` call.
-3. Infra follow-ups already noted in code: async ingest, real users in Postgres, maybe a job queue.
+- Embedding model: `all-MiniLM-L6-v2`
+- Embedding dimension: `384`
+- Vector distance: pgvector cosine distance (`<=>`)
+- Chat model: local Ollama `llama3.2`
+- Authentication: JWT on `/documents`, `/query`, and `/agent`

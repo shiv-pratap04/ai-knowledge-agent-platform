@@ -19,3 +19,4 @@ langchain-core
 langchain-ollama
 langchain-huggingface
 langchain-text-splitters
+langgraph

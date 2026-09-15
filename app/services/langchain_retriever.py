@@ -17,7 +17,7 @@ _embeddings = None
 
 
 def get_query_embeddings() -> HuggingFaceEmbeddings:
-    """Same MiniLM wrapper as experiments/langchain_basics/04_embeddings.py."""
+    """Same MiniLM wrapper as experiments/langchain_basics/embeddings.py."""
     global _embeddings
     if _embeddings is None:
         _embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")

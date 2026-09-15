@@ -43,7 +43,11 @@ def save_document_and_chunks(filename: str, chunks: list[dict]) -> tuple[int, in
                             chunk["text"],
                             chunk["page_number"],
                             chunk["chunk_index"],
-                            Vector(chunk["embedding"].tolist()),
+                            Vector(
+                                chunk["embedding"].tolist()
+                                if hasattr(chunk["embedding"], "tolist")
+                                else chunk["embedding"]
+                            ),
                         ),
                     )
 

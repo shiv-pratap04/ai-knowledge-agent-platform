@@ -5,10 +5,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from app.core.security import get_current_user
-from app.services.chunker import chunk_pages
 from app.services.document_store import save_document_and_chunks
-from app.services.embedder import EmbeddingError, embed_chunks
-from app.services.pdf_parser import InvalidPdfError, extract_text_from_pdf
+from app.services.langchain_ingest import LangChainIngestionError, ingest_pdf
 from db.connection import DatabaseError
 
 logger = logging.getLogger(__name__)
@@ -20,13 +18,8 @@ documents = []
 
 
 def _http_for_pipeline_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, InvalidPdfError):
+    if isinstance(exc, LangChainIngestionError):
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    if isinstance(exc, EmbeddingError):
-        return HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Embedding model failed to load or encode text. Check the server logs.",
-        )
     if isinstance(exc, DatabaseError):
         return HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -63,10 +56,9 @@ async def upload_document(file: UploadFile, username: str = Depends(get_current_
     documents.append(record)
 
     try:
-        pages, near_empty = extract_text_from_pdf(saved_path)
-        chunks = [] if near_empty else chunk_pages(pages)
+        chunks = ingest_pdf(saved_path)
 
-        if near_empty or not chunks:
+        if not chunks:
             document_id, stored = save_document_and_chunks(filename, [])
             logger.info("No chunks created for %s (document_id=%s)", filename, document_id)
             return {
@@ -81,7 +73,7 @@ async def upload_document(file: UploadFile, username: str = Depends(get_current_
 
         embed_chunks(chunks)
         document_id, stored = save_document_and_chunks(filename, chunks)
-    except (InvalidPdfError, EmbeddingError, DatabaseError) as exc:
+    except (LangChainIngestionError, DatabaseError) as exc:
         raise _http_for_pipeline_error(exc) from exc
 
     logger.info("Finished processing %s document_id=%s chunks=%s", filename, document_id, stored)
