@@ -34,7 +34,7 @@ def _build_agent(org_id: str):
 
     return create_react_agent(
         model=ChatGoogleGenerativeAI(
-            model="gemini-3-flash",
+            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             google_api_key=os.environ["GOOGLE_API_KEY"],
         ),
         tools=[search_knowledge_base],

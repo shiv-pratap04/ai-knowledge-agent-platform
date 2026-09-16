@@ -34,7 +34,7 @@ prompt = ChatPromptTemplate.from_messages(
 # Generation half of LCEL. Retriever is invoked separately so we can return
 # sources without embedding/querying twice.
 llm = ChatGoogleGenerativeAI(
-    model="gemini-3-flash",
+    model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
     google_api_key=os.environ["GOOGLE_API_KEY"],
 )
 chain = prompt | llm | StrOutputParser()
