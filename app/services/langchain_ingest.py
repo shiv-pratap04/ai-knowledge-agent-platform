@@ -1,14 +1,15 @@
 import logging
+import os
 from pathlib import Path
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+MODEL_NAME = "models/text-embedding-004"
+EMBEDDING_DIM = 768
 
 _embeddings = None
 _splitter = RecursiveCharacterTextSplitter(
@@ -21,11 +22,14 @@ class LangChainIngestionError(Exception):
     """Raised when LangChain cannot load, split, or embed a PDF."""
 
 
-def _get_embeddings() -> HuggingFaceEmbeddings:
+def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     global _embeddings
     if _embeddings is None:
         try:
-            _embeddings = HuggingFaceEmbeddings(model_name=MODEL_NAME)
+            _embeddings = GoogleGenerativeAIEmbeddings(
+                model=MODEL_NAME,
+                google_api_key=os.environ["GOOGLE_API_KEY"],
+            )
         except Exception as exc:
             raise LangChainIngestionError(
                 f"Failed to load embedding model '{MODEL_NAME}'."

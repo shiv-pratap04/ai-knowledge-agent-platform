@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     text TEXT NOT NULL,
     page_number INTEGER,
     chunk_index INTEGER,
-    embedding vector(384),
+    embedding vector(768),
     created_at TIMESTAMP DEFAULT NOW()
 );
 

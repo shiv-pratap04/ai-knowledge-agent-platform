@@ -5,10 +5,12 @@ Our table already has document_id, page_number, chunk_index, so we wrap
 the same cosine-distance SQL used by POST /query.
 """
 
+import os
+
 import psycopg2
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from pgvector import Vector
 
 from db.connection import DatabaseError, get_db_connection
@@ -16,11 +18,14 @@ from db.connection import DatabaseError, get_db_connection
 _embeddings = None
 
 
-def get_query_embeddings() -> HuggingFaceEmbeddings:
-    """Same MiniLM wrapper as experiments/langchain_basics/embeddings.py."""
+def get_query_embeddings() -> GoogleGenerativeAIEmbeddings:
+    """Use the same Google embedding model as document ingestion."""
     global _embeddings
     if _embeddings is None:
-        _embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        _embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/text-embedding-004",
+            google_api_key=os.environ["GOOGLE_API_KEY"],
+        )
     return _embeddings
 
 
