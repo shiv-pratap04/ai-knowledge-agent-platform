@@ -1,6 +1,9 @@
-from sentence_transformers import SentenceTransformer
+import os
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+from dotenv import load_dotenv
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+MODEL_NAME = "models/text-embedding-004"
 
 SENTENCES = [
     "The cat sat on the mat.",
@@ -11,11 +14,14 @@ SENTENCES = [
 
 
 def main():
-    model = SentenceTransformer(MODEL_NAME)
-    embeddings = model.encode(SENTENCES)
+    load_dotenv()
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model=MODEL_NAME,
+        google_api_key=os.environ["GOOGLE_API_KEY"],
+    ).embed_documents(SENTENCES)
 
-    print(f"Shape: {embeddings.shape}")
-    print(f"Dimension: {embeddings.shape[1]}")
+    print(f"Shape: ({len(embeddings)}, {len(embeddings[0])})")
+    print(f"Dimension: {len(embeddings[0])}")
     print()
 
     for i, sentence in enumerate(SENTENCES):

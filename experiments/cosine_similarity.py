@@ -1,7 +1,10 @@
-from sentence_transformers import SentenceTransformer
+import os
+
+from dotenv import load_dotenv
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from sklearn.metrics.pairwise import cosine_similarity
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+MODEL_NAME = "models/text-embedding-004"
 
 SENTENCES = [
     "The cat sat on the mat.",
@@ -12,8 +15,11 @@ SENTENCES = [
 
 
 def main():
-    model = SentenceTransformer(MODEL_NAME)
-    embeddings = model.encode(SENTENCES)
+    load_dotenv()
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model=MODEL_NAME,
+        google_api_key=os.environ["GOOGLE_API_KEY"],
+    ).embed_documents(SENTENCES)
 
     similarity_matrix = cosine_similarity(embeddings)
 

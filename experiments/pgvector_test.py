@@ -1,13 +1,13 @@
 import os
 import sys
 
-import psycopg2
 from dotenv import load_dotenv
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import psycopg2
 from pgvector.psycopg2 import register_vector
-from sentence_transformers import SentenceTransformer
 
-MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+MODEL_NAME = "models/text-embedding-004"
+EMBEDDING_DIM = 768
 
 SENTENCES = [
     "The cat sat on the mat.",
@@ -25,8 +25,10 @@ def main():
         sys.exit(1)
 
     print("Loading embedding model...")
-    model = SentenceTransformer(MODEL_NAME)
-    embeddings = model.encode(SENTENCES)
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model=MODEL_NAME,
+        google_api_key=os.environ["GOOGLE_API_KEY"],
+    ).embed_documents(SENTENCES)
 
     print("Connecting to Postgres...")
     try:
@@ -59,7 +61,7 @@ def main():
             for sentence, embedding in zip(SENTENCES, embeddings):
                 cur.execute(
                     "INSERT INTO test_embeddings (sentence, embedding) VALUES (%s, %s)",
-                    (sentence, embedding.tolist()),
+                    (sentence, embedding),
                 )
 
             print("\nFetching stored rows:\n")
