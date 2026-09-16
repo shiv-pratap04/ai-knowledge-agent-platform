@@ -26,7 +26,9 @@ def get_redis_client():
     """Return the shared Redis client, creating it lazily on first use."""
     global _redis_client
     if _redis_client is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = os.getenv("REDIS_URL") or os.getenv(
+            "UPSTASH_REDIS_URL", "redis://localhost:6379/0"
+        )
         _redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
     return _redis_client
 

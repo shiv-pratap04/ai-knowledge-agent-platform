@@ -24,7 +24,7 @@ class DatabaseQueryError(DatabaseError):
 
 def get_db_connection():
     """Open a psycopg2 connection with the pgvector type registered."""
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL") or os.getenv("NEON_DATABASE_URL")
     if not database_url:
         raise DatabaseConnectionError(
             "DATABASE_URL is not set. Copy .env.example to .env and try again."

@@ -8,7 +8,6 @@ services:
     dockerfilePath: ./Dockerfile.backend
     dockerContext: .
     healthCheckPath: /health
-    dockerCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -17,22 +16,6 @@ services:
       - key: JWT_SECRET_KEY
         sync: false
       - key: CORS_ORIGINS
-        sync: false
-
-  # Background workers may not be available or may sleep on Render's free tier.
-  # Use this service for prompt ingestion; a cron job would not process uploads immediately.
-  - type: worker
-    name: ai-knowledge-agent-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile.backend
-    dockerContext: .
-    dockerCommand: celery -A app.services.celery_app.celery_app worker --loglevel=info --concurrency=2
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: JWT_SECRET_KEY
         sync: false
 
   - type: web
