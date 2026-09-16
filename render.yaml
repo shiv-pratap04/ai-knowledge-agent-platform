@@ -1,0 +1,45 @@
+services:
+  # IMPORTANT: Render services have separate filesystems. The current ingestion
+  # task reads uploaded_docs from disk, so production needs shared object storage
+  # (for example S3/R2) or a redesign to store the upload bytes in Postgres.
+  - type: web
+    name: ai-knowledge-agent-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    healthCheckPath: /health
+    dockerCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  # Background workers may not be available or may sleep on Render's free tier.
+  # Use this service for prompt ingestion; a cron job would not process uploads immediately.
+  - type: worker
+    name: ai-knowledge-agent-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    dockerCommand: celery -A app.services.celery_app.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+
+  - type: static_site
+    name: ai-knowledge-agent-client
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
