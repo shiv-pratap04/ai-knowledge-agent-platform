@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
+from app.services.cache import get_cached, response_cache_key, set_cached
 from app.services.conversation_store import add_message, get_or_create_conversation
 from app.services.langgraph_agent import invoke_agent
 from db.connection import DatabaseConnectionError, DatabaseError, DatabaseQueryError
@@ -60,6 +61,27 @@ def run_agent(
             detail="LangGraph agent is unavailable. Check Ollama and server logs.",
         )
 
+    cache_key = response_cache_key(
+        organization.org_id,
+        body.question,
+        conversation_id if body.conversation_id else None,
+    )
+    cached = get_cached(cache_key)
+    if cached:
+        add_message(
+            conversation_id,
+            "assistant",
+            cached["answer"],
+            citations=cached.get("citations"),
+            tool_calls=cached.get("tool_calls"),
+        )
+        return {
+            "question": body.question,
+            "answer": cached["answer"],
+            "conversation_id": conversation_id,
+            "cached": True,
+        }
+
     add_message(
         conversation_id,
         "assistant",
@@ -67,8 +89,31 @@ def run_agent(
         citations=result["citations"],
         tool_calls=result["tool_calls"],
     )
-    return {
+    response = {
         "question": body.question,
         "answer": result["content"],
         "conversation_id": conversation_id,
     }
+    if not _has_write_tool_call(result["tool_calls"]):
+        set_cached(
+            cache_key,
+            {
+                "answer": result["content"],
+                "citations": result["citations"],
+                "tool_calls": result["tool_calls"],
+            },
+        )
+    return response
+
+
+def _has_write_tool_call(tool_calls) -> bool:
+    """Keep responses involving mutating tools out of the response cache."""
+    for tool_call in tool_calls or []:
+        if isinstance(tool_call, dict):
+            name = tool_call.get("name") or tool_call.get("function", {}).get("name")
+        else:
+            name = getattr(tool_call, "name", None)
+        normalized_name = (name or "").lower()
+        if normalized_name.startswith(("create_", "update_", "delete_", "modify_")):
+            return True
+    return False

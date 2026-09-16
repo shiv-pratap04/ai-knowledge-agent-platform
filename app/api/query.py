@@ -7,6 +7,7 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
+from app.services.cache import get_cached, response_cache_key, set_cached
 from app.services.conversation_store import add_message, get_or_create_conversation
 from app.services.langchain_retriever import PgChunksRetriever
 from db.connection import DatabaseConnectionError, DatabaseError, DatabaseQueryError
@@ -87,6 +88,27 @@ def query(
             detail="Could not persist the conversation.",
         ) from exc
 
+    cache_key = response_cache_key(
+        organization.org_id,
+        body.question,
+        conversation_id if body.conversation_id else None,
+    )
+    cached = get_cached(cache_key)
+    if cached:
+        add_message(
+            conversation_id,
+            "assistant",
+            cached["answer"],
+            citations=cached.get("sources", []),
+        )
+        return {
+            "question": body.question,
+            "answer": cached["answer"],
+            "sources": cached.get("sources", []),
+            "conversation_id": conversation_id,
+            "cached": True,
+        }
+
     try:
         docs = PgChunksRetriever(k=5, org_id=organization.org_id).invoke(body.question)
     except DatabaseConnectionError:
@@ -120,12 +142,14 @@ def query(
     if not docs:
         answer = "No relevant information found in the documents."
         add_message(conversation_id, "assistant", answer, citations=[])
-        return {
+        response = {
             "question": body.question,
             "answer": answer,
             "sources": [],
             "conversation_id": conversation_id,
         }
+        set_cached(cache_key, {"answer": answer, "sources": []})
+        return response
 
     context = format_docs_as_context(docs)
     try:
@@ -140,9 +164,11 @@ def query(
     logger.info("LangChain answer returned (%s chars, %s sources)", len(answer), len(sources))
     answer = answer.strip()
     add_message(conversation_id, "assistant", answer, citations=sources)
-    return {
+    response = {
         "question": body.question,
         "answer": answer,
         "sources": sources,
         "conversation_id": conversation_id,
     }
+    set_cached(cache_key, {"answer": answer, "sources": sources})
+    return response

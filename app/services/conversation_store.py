@@ -3,6 +3,7 @@ from uuid import UUID
 
 import psycopg2
 
+from app.services.cache import delete_conversation_cached
 from db.connection import DatabaseError, get_db_connection
 
 
@@ -180,3 +181,4 @@ def add_message(
         raise DatabaseError("Failed to store conversation message.") from exc
     finally:
         conn.close()
+    delete_conversation_cached(conversation_id)
