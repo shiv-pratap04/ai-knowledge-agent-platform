@@ -58,7 +58,7 @@ def run_agent(
         logger.exception("LangGraph agent failed")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LangGraph agent is unavailable. Check Ollama and server logs.",
+            detail="LangGraph agent is unavailable. Check GOOGLE_API_KEY and server logs.",
         )
 
     cache_key = response_cache_key(

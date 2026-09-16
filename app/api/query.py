@@ -1,9 +1,10 @@
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
@@ -32,7 +33,11 @@ prompt = ChatPromptTemplate.from_messages(
 
 # Generation half of LCEL. Retriever is invoked separately so we can return
 # sources without embedding/querying twice.
-chain = prompt | ChatOllama(model="llama3.2") | StrOutputParser()
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3-flash",
+    google_api_key=os.environ["GOOGLE_API_KEY"],
+)
+chain = prompt | llm | StrOutputParser()
 
 
 class QueryRequest(BaseModel):
@@ -155,10 +160,10 @@ def query(
     try:
         answer = chain.invoke({"context": context, "question": body.question})
     except Exception:
-        logger.exception("Ollama/LangChain generation failed")
+        logger.exception("Google Gemini/LangChain generation failed")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not connect to Ollama at http://localhost:11434. Start Ollama and try again.",
+            detail="Could not connect to Google Gemini. Check GOOGLE_API_KEY and try again.",
         )
 
     logger.info("LangChain answer returned (%s chars, %s sources)", len(answer), len(sources))

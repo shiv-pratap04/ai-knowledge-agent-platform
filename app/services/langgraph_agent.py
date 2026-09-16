@@ -1,8 +1,9 @@
 import json
 import logging
+import os
 
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
-from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 
 from app.services.langchain_retriever import PgChunksRetriever
@@ -32,7 +33,10 @@ def _build_agent(org_id: str):
         )
 
     return create_react_agent(
-        model=ChatOllama(model="llama3.2"),
+        model=ChatGoogleGenerativeAI(
+            model="gemini-3-flash",
+            google_api_key=os.environ["GOOGLE_API_KEY"],
+        ),
         tools=[search_knowledge_base],
         prompt=(
             "You are a knowledge-base agent. Use search_knowledge_base for questions "
