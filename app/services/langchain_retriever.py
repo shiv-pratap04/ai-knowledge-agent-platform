@@ -41,7 +41,7 @@ class PgChunksRetriever(BaseRetriever):
                            d.filename, c.embedding <=> %s AS distance
                     FROM chunks c
                     LEFT JOIN documents d ON d.id = c.document_id
-                    WHERE d.org_id = %s
+                        WHERE d.org_id = %s AND d.status = 'ready'
                     ORDER BY distance
                     LIMIT %s
                     """,

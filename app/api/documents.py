@@ -1,12 +1,13 @@
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
-from app.services.document_store import save_document_and_chunks
-from app.services.langchain_ingest import LangChainIngestionError, ingest_pdf
+from app.services.document_store import create_document
+from app.services.document_store import mark_document_failed
+from app.services.document_tasks import process_document
 from db.connection import DatabaseError, get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -14,32 +15,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 UPLOAD_DIR = Path("uploaded_docs")
-def _http_for_pipeline_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, LangChainIngestionError):
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    if isinstance(exc, DatabaseError):
-        return HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not connect to Postgres. Start it with: docker compose up -d",
-        )
-    logger.exception("Unexpected error while processing document")
-    return HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Failed to process the uploaded document.",
-    )
-
-
-@router.post("/documents")
+@router.post("/documents", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     file: UploadFile,
     username: str = Depends(get_current_user),
     organization: OrganizationContext = Depends(get_current_org),
 ):
-    """Save an uploaded PDF, then extract, chunk, embed, and store it."""
+    """Save an uploaded PDF and enqueue asynchronous ingestion."""
     UPLOAD_DIR.mkdir(exist_ok=True)
 
     filename = Path(file.filename or "unnamed").name
-    saved_path = UPLOAD_DIR / filename
+    saved_path = UPLOAD_DIR / f"{uuid4().hex}_{filename}"
     contents = await file.read()
     if not contents:
         raise HTTPException(
@@ -49,40 +35,32 @@ async def upload_document(
     saved_path.write_bytes(contents)
     logger.info("Document uploaded by %s: %s (%s bytes)", username, filename, len(contents))
 
-    record = {
-        "filename": filename,
-        "path": str(saved_path),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
     try:
-        chunks = ingest_pdf(saved_path)
+        document_id = create_document(filename, str(saved_path), organization.org_id)
+        process_document.delay(document_id)
+    except DatabaseError as exc:
+        if "document_id" in locals():
+            mark_document_failed(document_id, "Could not enqueue document processing.")
+        saved_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not queue document processing.",
+        ) from exc
+    except Exception as exc:
+        if "document_id" in locals():
+            mark_document_failed(document_id, "Could not enqueue document processing.")
+        saved_path.unlink(missing_ok=True)
+        logger.exception("Could not enqueue document %s", filename)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not queue document processing.",
+        ) from exc
 
-        if not chunks:
-            document_id, stored = save_document_and_chunks(
-                filename, [], organization.org_id
-            )
-            logger.info("No chunks created for %s (document_id=%s)", filename, document_id)
-            return {
-                "filename": filename,
-                "document_id": document_id,
-                "total_chunks_created": stored,
-                "message": (
-                    "Little to no text extracted - this PDF might be "
-                    "scanned/image-based and need OCR. No chunks were created."
-                ),
-            }
-
-        document_id, stored = save_document_and_chunks(
-            filename, chunks, organization.org_id
-        )
-    except (LangChainIngestionError, DatabaseError) as exc:
-        raise _http_for_pipeline_error(exc) from exc
-
-    logger.info("Finished processing %s document_id=%s chunks=%s", filename, document_id, stored)
+    logger.info("Queued document %s document_id=%s", filename, document_id)
     return {
         "filename": filename,
         "document_id": document_id,
-        "total_chunks_created": stored,
+        "status": "processing",
     }
 
 
@@ -97,7 +75,7 @@ def list_documents(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT filename, id, uploaded_at
+                SELECT filename, id, uploaded_at, status, error_message, chunk_count
                 FROM documents
                 WHERE org_id = %s
                 ORDER BY uploaded_at DESC
@@ -109,6 +87,48 @@ def list_documents(
         conn.close()
 
     return [
-        {"filename": filename, "document_id": document_id, "timestamp": uploaded_at}
-        for filename, document_id, uploaded_at in rows
+        {
+            "filename": filename,
+            "document_id": document_id,
+            "timestamp": uploaded_at,
+            "status": status,
+            "error_message": error_message,
+            "chunk_count": chunk_count,
+        }
+        for filename, document_id, uploaded_at, status, error_message, chunk_count in rows
     ]
+
+
+@router.get("/documents/{document_id}")
+def document_detail(
+    document_id: int,
+    username: str = Depends(get_current_user),
+    organization: OrganizationContext = Depends(get_current_org),
+):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT filename, id, uploaded_at, status, error_message, chunk_count, processed_at
+                FROM documents
+                WHERE id = %s AND org_id = %s
+                """,
+                (document_id, organization.org_id),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    filename, document_id, uploaded_at, current_status, error_message, chunk_count, processed_at = row
+    return {
+        "filename": filename,
+        "document_id": document_id,
+        "timestamp": uploaded_at,
+        "status": current_status,
+        "error_message": error_message,
+        "chunk_count": chunk_count,
+        "processed_at": processed_at,
+    }

@@ -5,6 +5,7 @@ python-dotenv
 psycopg2-binary
 pgvector
 redis
+celery[redis]
 requests
 sentence-transformers
 numpy

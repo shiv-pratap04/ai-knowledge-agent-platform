@@ -34,7 +34,14 @@ CREATE TABLE IF NOT EXISTS documents (
     id SERIAL PRIMARY KEY,
     filename TEXT NOT NULL,
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    uploaded_at TIMESTAMP DEFAULT NOW()
+    uploaded_at TIMESTAMP DEFAULT NOW(),
+    storage_path TEXT,
+    status TEXT NOT NULL DEFAULT 'ready'
+        CHECK (status IN ('processing', 'ready', 'failed')),
+    error_message TEXT,
+    processed_at TIMESTAMPTZ,
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
