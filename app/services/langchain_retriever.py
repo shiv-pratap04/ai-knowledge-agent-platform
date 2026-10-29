@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - optional dependency for local tests
     GoogleGenerativeAIEmbeddings = None
 
 try:
-    from pgvector import Vector
+    from pgvector.utils import Vector
 except ImportError:  # pragma: no cover - optional dependency for local tests
     Vector = None
 

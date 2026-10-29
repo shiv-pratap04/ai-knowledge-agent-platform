@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 import psycopg2
-from pgvector import Vector
+from pgvector.utils import Vector
 
 from db.connection import DatabaseError, get_db_connection
 
@@ -96,11 +96,11 @@ def create_document(filename: str, storage_path: str, org_id: str) -> int:
 def get_document_for_processing(document_id: int) -> dict | None:
     """Claim a document under an advisory lock for the task's processing window."""
     conn = get_db_connection()
+    connection_transferred = False
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT pg_try_advisory_lock(%s)", (document_id,))
             if not cur.fetchone()[0]:
-                conn.close()
                 return None
             cur.execute(
                 """
@@ -113,13 +113,15 @@ def get_document_for_processing(document_id: int) -> dict | None:
             )
             row = cur.fetchone()
             if not row or row[1] != "processing":
-                conn.close()
                 return None
-                conn.commit()
-                return {"storage_path": row[0], "connection": conn}
+        conn.commit()
+        connection_transferred = True
+        return {"storage_path": row[0], "connection": conn}
     except psycopg2.Error as exc:
-        conn.close()
         raise DatabaseError("Failed to claim document for processing.") from exc
+    finally:
+        if not connection_transferred:
+            conn.close()
 
 
 def release_document_processing(document: dict) -> None:
