@@ -2,10 +2,25 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
+
+try:
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
+except ImportError:  # pragma: no cover - optional dependency in local tests
+    class StrOutputParser:
+        def __call__(self, value):
+            return value
+
+    class ChatPromptTemplate:
+        @classmethod
+        def from_messages(cls, messages):
+            return messages
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:  # pragma: no cover - optional dependency in local tests
+    ChatGoogleGenerativeAI = None
 
 from app.core.security import OrganizationContext, get_current_org, get_current_user
 from app.services.cache import get_cached, response_cache_key, set_cached
@@ -33,11 +48,15 @@ prompt = ChatPromptTemplate.from_messages(
 
 # Generation half of LCEL. Retriever is invoked separately so we can return
 # sources without embedding/querying twice.
-llm = ChatGoogleGenerativeAI(
-    model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-    google_api_key=os.environ["GOOGLE_API_KEY"],
-)
-chain = prompt | llm | StrOutputParser()
+if ChatGoogleGenerativeAI is not None:
+    llm = ChatGoogleGenerativeAI(
+        model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        google_api_key=os.environ["GOOGLE_API_KEY"],
+    )
+    chain = prompt | llm | StrOutputParser()
+else:
+    llm = None
+    chain = None
 
 
 class QueryRequest(BaseModel):
@@ -155,6 +174,12 @@ def query(
         }
         set_cached(cache_key, {"answer": answer, "sources": []})
         return response
+
+    if chain is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The Google AI LLM dependency is not installed in this environment.",
+        )
 
     context = format_docs_as_context(docs)
     try:

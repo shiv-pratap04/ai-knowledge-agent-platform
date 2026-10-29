@@ -11,6 +11,7 @@ import { DocumentsPage } from "./pages/DocumentsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
+import { TicketsPage } from "./pages/TicketsPage";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -25,6 +26,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route element={<AppShell />}>
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/tickets" element={<TicketsPage />} />
               <Route element={<AdminRoute />}>
                 <Route path="/admin" element={<AdminPage />} />
               </Route>

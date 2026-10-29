@@ -14,7 +14,19 @@ from app.services.langchain_ingest import ingest_pdf
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="documents.process")
+def _task_decorator(*args, **kwargs):
+    def decorator(func):
+        return func
+    return decorator
+
+
+if celery_app is not None:
+    task_decorator = celery_app.task
+else:
+    task_decorator = _task_decorator
+
+
+@task_decorator(bind=True, name="documents.process")
 def process_document(self, document_id: int):
     """Parse, embed, and persist one document outside the API process."""
     document = get_document_for_processing(document_id)

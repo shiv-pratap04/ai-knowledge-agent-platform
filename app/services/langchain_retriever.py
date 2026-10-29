@@ -8,18 +8,39 @@ the same cosine-distance SQL used by POST /query.
 import os
 
 import psycopg2
-from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from pgvector import Vector
+
+try:
+    from langchain_core.documents import Document
+    from langchain_core.retrievers import BaseRetriever
+except ImportError:  # pragma: no cover - optional dependency for local tests
+    class Document:
+        def __init__(self, page_content: str, metadata: dict | None = None):
+            self.page_content = page_content
+            self.metadata = metadata or {}
+
+    class BaseRetriever:
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+except ImportError:  # pragma: no cover - optional dependency for local tests
+    GoogleGenerativeAIEmbeddings = None
+
+try:
+    from pgvector import Vector
+except ImportError:  # pragma: no cover - optional dependency for local tests
+    Vector = None
 
 from db.connection import DatabaseError, get_db_connection
 
 _embeddings = None
 
 
-def get_query_embeddings() -> GoogleGenerativeAIEmbeddings:
+def get_query_embeddings():
     """Use the same Google embedding model as document ingestion."""
+    if GoogleGenerativeAIEmbeddings is None:
+        raise RuntimeError("langchain-google-genai is not installed.")
     global _embeddings
     if _embeddings is None:
         _embeddings = GoogleGenerativeAIEmbeddings(
@@ -36,6 +57,8 @@ class PgChunksRetriever(BaseRetriever):
     org_id: str
 
     def _get_relevant_documents(self, query: str) -> list[Document]:
+        if Vector is None:
+            raise RuntimeError("pgvector is not installed.")
         vector = get_query_embeddings().embed_query(query)
         conn = get_db_connection()
         try:

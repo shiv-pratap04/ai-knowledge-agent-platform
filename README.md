@@ -9,7 +9,8 @@ A production-style multi-tenant AI knowledge base platform built with FastAPI, R
 - PDF upload and async document ingestion
 - pgvector-based semantic search over chunks
 - RAG-style question answering with citations
-- LangGraph-powered knowledge agent with tool-based retrieval
+- LangGraph-powered knowledge agent with tool-based retrieval and support-ticket creation
+- Internal support ticket workflow with tenant-scoped persistence
 - Conversation history per organization
 - Admin dashboard for member and usage insights
 - Dockerized local setup and Render deployment config
@@ -42,7 +43,8 @@ Core request flows:
 - `POST /signup` and `POST /login` handle auth and tenant membership
 - `POST /documents` uploads a PDF and enqueues async processing
 - `POST /query` runs retrieval-augmented generation over embedded PDF chunks
-- `POST /agent` runs the LangGraph knowledge agent with document search tools
+- `POST /agent` runs the LangGraph knowledge agent with knowledge-base and ticket tools
+- `POST /tickets`, `GET /tickets`, `GET /tickets/{ticket_id}` manage support tickets in the authenticated org
 - `GET /org/*` serves admin/organization-level data
 - `GET /conversations/*` manages chat history
 
@@ -184,16 +186,50 @@ The app is set up for a typical render deployment layout, but keep in mind the c
 ### Chat and knowledge retrieval
 
 - `POST /query` — retrieve relevant chunks and answer a question
-- `POST /agent` — run the LangGraph agent and return an answer with citations
+- `POST /agent` — run the LangGraph agent and return an answer with citations or a ticket result
 - `GET /conversations` — list conversations
 - `GET /conversations/{conversation_id}` — load a thread
 - `POST /conversations` — create a conversation thread
+
+### Support tickets
+
+- `POST /tickets` — create a support ticket for the authenticated org and user
+- `GET /tickets` — list the current organization’s tickets
+- `GET /tickets/{ticket_id}` — fetch an organization-scoped ticket
+- `PATCH /tickets/{ticket_id}` — update a ticket, such as priority or status
 
 ### Admin
 
 - `GET /org/members` — list organization members
 - `GET /org/usage` — return document and query counts
 - `GET /org/invite` — return the invite code for the org
+
+## Agent tools
+
+The LangGraph agent now includes two tools:
+
+- `search_knowledge_base` — searches the organization’s indexed documents and citations for troubleshooting or policy questions.
+- `create_support_ticket` — creates a persistent internal ticket only when the user explicitly requests one or the workflow requires it after consulting knowledge base guidance.
+
+Example conversations:
+
+```text
+User: What is the company VPN policy?
+Agent: search_knowledge_base()
+Result: Answer from the indexed documentation with citations.
+```
+
+```text
+User: My VPN is not working. Create a support ticket.
+Agent: create_support_ticket(title="VPN connection failure", description="VPN is failing...", category="NETWORK", priority="HIGH")
+Result: Ticket created successfully. Ticket ID: TKT-1001
+```
+
+```text
+User: My laptop Wi-Fi is not working. What should I do?
+Agent: search_knowledge_base()
+Result: Troubleshooting guidance from knowledge base; no ticket is created unless the user explicitly asks for one.
+```
 
 ## Notes and caveats
 

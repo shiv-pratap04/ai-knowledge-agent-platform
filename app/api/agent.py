@@ -35,7 +35,7 @@ def run_agent(
             body.question,
         )
         add_message(conversation_id, "user", body.question)
-        result = invoke_agent(body.question, organization.org_id)
+        result = invoke_agent(body.question, organization.org_id, organization.user_id)
     except DatabaseConnectionError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

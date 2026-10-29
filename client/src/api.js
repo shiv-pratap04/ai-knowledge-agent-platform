@@ -97,4 +97,27 @@ export function getOrgInvite(token) {
   });
 }
 
+export function listTickets(token) {
+  return request("/tickets", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createTicket(token, values) {
+  return request("/tickets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(values),
+  });
+}
+
+export function getTicket(token, ticketId) {
+  return request(`/tickets/${ticketId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export { API_URL };

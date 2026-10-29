@@ -2,9 +2,25 @@ import logging
 import os
 from pathlib import Path
 
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+try:
+    from langchain_community.document_loaders import PyPDFLoader
+except ImportError:  # pragma: no cover - optional dependency in local dev/test envs
+    PyPDFLoader = None
+
+try:
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+except ImportError:  # pragma: no cover
+    GoogleGenerativeAIEmbeddings = None
+
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+except ImportError:  # pragma: no cover
+    class RecursiveCharacterTextSplitter:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def split_documents(self, documents):
+            return documents
 
 logger = logging.getLogger(__name__)
 
