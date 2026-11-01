@@ -3,7 +3,7 @@ python-multipart
 uvicorn[standard]
 python-dotenv
 psycopg2-binary
-pgvector
+pgvector==0.3.6
 redis
 celery[redis]
 requests
