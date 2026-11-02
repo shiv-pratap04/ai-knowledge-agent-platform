@@ -74,7 +74,7 @@ class PgChunksRetriever(BaseRetriever):
                     ORDER BY distance
                     LIMIT %s
                     """,
-                    (Vector(vector), self.org_id, self.k),
+                    (Vector(vector).to_numpy(), self.org_id, self.k),
                 )
                 rows = cur.fetchall()
         except psycopg2.Error as exc:

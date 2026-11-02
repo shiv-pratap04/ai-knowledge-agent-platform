@@ -51,7 +51,7 @@ def save_document_and_chunks(
                                 chunk["embedding"].tolist()
                                 if hasattr(chunk["embedding"], "tolist")
                                 else chunk["embedding"]
-                            ),
+                            ).to_numpy(),
                         ),
                     )
 
@@ -149,7 +149,7 @@ def save_chunks_for_document(document_id: int, chunks: list[dict]) -> int:
                                 chunk["embedding"].tolist()
                                 if hasattr(chunk["embedding"], "tolist")
                                 else chunk["embedding"]
-                            ),
+                            ).to_numpy(),
                         ),
                     )
                 return len(chunks)
