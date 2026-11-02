@@ -1,5 +1,5 @@
 -- Existing chunks contain 384-dimensional MiniLM vectors and cannot be mixed
--- with the 768-dimensional Google text-embedding-004 vectors.
+-- with the 768-dimensional Gemini embedding vectors.
 DELETE FROM chunks;
 
 ALTER TABLE chunks

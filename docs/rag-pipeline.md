@@ -8,7 +8,7 @@ The application has one RAG endpoint: `POST /query`. It uses LangChain for docum
 POST /documents
     -> LangChain PyPDFLoader
     -> RecursiveCharacterTextSplitter
-    -> HuggingFaceEmbeddings (all-MiniLM-L6-v2, 384 dimensions)
+    -> GoogleGenerativeAIEmbeddings (gemini-embedding-001, 768 dimensions)
     -> PostgreSQL documents/chunks tables with pgvector embeddings
 ```
 
@@ -18,7 +18,7 @@ Uploads are processed synchronously. Empty or image-only PDFs are stored without
 
 ```text
 POST /query
-    -> LangChain HuggingFaceEmbeddings
+    -> LangChain GoogleGenerativeAIEmbeddings (gemini-embedding-001, 768 dimensions)
     -> PgChunksRetriever
     -> pgvector cosine retrieval
     -> LangChain ChatPromptTemplate
@@ -26,7 +26,7 @@ POST /query
     -> answer with page-cited sources
 ```
 
-`PgChunksRetriever` is a LangChain `BaseRetriever` over the existing `chunks` table. The database schema remains the application-owned `documents` and `chunks` schema with `vector(384)` embeddings.
+`PgChunksRetriever` is a LangChain `BaseRetriever` over the existing `chunks` table. The database schema remains the application-owned `documents` and `chunks` schema with `vector(768)` embeddings.
 
 ## Agent
 
@@ -42,8 +42,10 @@ LangGraph owns the agent state and tool loop. There is no manual prompt-parsing 
 
 ## Configuration
 
-- Embedding model: `all-MiniLM-L6-v2`
-- Embedding dimension: `384`
+- Embedding model: `gemini-embedding-001`
+- Embedding dimension: `768`
 - Vector distance: pgvector cosine distance (`<=>`)
 - Chat model: local Ollama `llama3.2`
 - Authentication: JWT on `/documents`, `/query`, and `/agent`
+
+Documents indexed with a different embedding model must be re-embedded before querying with this model. Embeddings from different models should not be mixed.

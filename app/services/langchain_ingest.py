@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "models/text-embedding-004"
+MODEL_NAME = "gemini-embedding-001"
 EMBEDDING_DIM = 768
 
 _embeddings = None
@@ -44,6 +44,7 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
         try:
             _embeddings = GoogleGenerativeAIEmbeddings(
                 model=MODEL_NAME,
+                output_dimensionality=EMBEDDING_DIM,
                 google_api_key=os.environ["GOOGLE_API_KEY"],
             )
         except Exception as exc:

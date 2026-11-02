@@ -15,7 +15,7 @@ flowchart LR
     Client --> Upload[POST /documents]
     Upload --> Loader[LangChain PyPDFLoader]
     Loader --> Splitter[RecursiveCharacterTextSplitter]
-    Splitter --> Embed[HuggingFaceEmbeddings]
+    Splitter --> Embed[Gemini embeddings, 768 dimensions]
     Embed --> Store[(PostgreSQL + pgvector)]
 
     Client --> Query[POST /query]
